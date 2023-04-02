@@ -29,6 +29,8 @@ from tllib.utils.metric import ConfusionMatrix
 from tllib.utils.meter import AverageMeter, ProgressMeter, Meter
 from tllib.utils.logger import CompleteLogger
 import os
+from utils.losses import get_segmentation_loss
+
 
 def main(args: argparse.Namespace):
     logger = CompleteLogger(args.log, args.phase)
@@ -48,25 +50,25 @@ def main(args: argparse.Namespace):
 
     # Data loading code
     root = args.dataset_root
-    train_mr_data_pth = os.path.join(root, 'train_mr')
-    train_ct_data_pth = os.path.join(root, 'train_ct')
-    train_mr_gt_pth = os.path.join(root, 'gt_train_mr')
-    train_ct_gt_pth = os.path.join(root, 'gt_train_ct')
-    val_mr_data_pth = os.path.join(root, 'val_mr')
-    val_ct_data_pth = os.path.join(root, 'val_ct')
-    val_mr_gt_pth = os.path.join(root, 'gt_val_mr')
-    val_ct_gt_pth = os.path.join(root, 'gt_val_ct')
+    train_mr_data_pth = os.path.join(root, 'trainval_mr')
+    train_ct_data_pth = os.path.join(root, 'trainval_ct')
+    train_mr_gt_pth = os.path.join(root, 'gt_trainval_mr')
+    train_ct_gt_pth = os.path.join(root, 'gt_trainval_ct')
+    val_mr_data_pth = os.path.join(root, 'test_mr')
+    val_ct_data_pth = os.path.join(root, 'test_ct')
+    val_mr_gt_pth = os.path.join(root, 'gt_test_mr')
+    val_ct_gt_pth = os.path.join(root, 'gt_test_ct')
 
     # num_classes = train_source_dataset.num_classes
     num_classes = 5
     from datasets.data_loader import MMWHSDataset
-    train_source_dataset = MMWHSDataset(data_path=train_mr_data_pth, gt_path=train_mr_gt_pth, phase='train')
+    train_source_dataset = MMWHSDataset(data_path=train_mr_data_pth, gt_path=train_mr_gt_pth, phase='train', args=args)
 
-    train_target_dataset = MMWHSDataset(data_path=train_ct_data_pth, gt_path=train_ct_gt_pth, phase='train')
+    train_target_dataset = MMWHSDataset(data_path=train_ct_data_pth, gt_path=train_ct_gt_pth, phase='train', args=args)
 
-    # mrval_dataset = MMWHSDataset(data_path=val_mr_data_pth, gt_path=val_mr_gt_pth, phase='val')
+    # mrval_dataset = MMWHSDataset(data_path=val_mr_data_pth, gt_path=val_mr_gt_pth, phase='val', args=args)
 
-    val_target_dataset = MMWHSDataset(data_path=val_ct_data_pth, gt_path=val_ct_gt_pth, phase='val')
+    val_target_dataset = MMWHSDataset(data_path=val_ct_data_pth, gt_path=val_ct_gt_pth, phase='val', args=args)
 
     # source_dataset = datasets.__dict__[args.source]
     # train_source_dataset = source_dataset(
@@ -128,7 +130,11 @@ def main(args: argparse.Namespace):
         args.start_epoch = checkpoint['epoch'] + 1
 
     # define loss function (criterion)
-    criterion = torch.nn.CrossEntropyLoss(ignore_index=args.ignore_label).to(device)
+    # criterion = torch.nn.CrossEntropyLoss(ignore_index=args.ignore_label).to(device)
+    from monai.losses import DiceCELoss
+    # criterion = DiceCELoss(include_background=True, to_onehot_y=True).to(device)
+    criterion = get_segmentation_loss(args.seg_loss, include_background=True, to_onehot_y=True).to(device)
+
     dann = DomainAdversarialEntropyLoss(discriminator)
     interp_train = nn.Upsample(size=args.train_size[::-1], mode='bilinear', align_corners=True)
     interp_val = nn.Upsample(size=args.test_output_size[::-1], mode='bilinear', align_corners=True)
@@ -397,6 +403,10 @@ if __name__ == '__main__':
                         help='Number of iterations per epoch')
     parser.add_argument('-p', '--print-freq', default=100, type=int,
                         metavar='N', help='print frequency (default: 100)')
+    parser.add_argument('--seg_loss', default='DiceCE', type=str,
+                        choices=['Dice', 'Focal', 'DiceCE', 'DiceFocal', 'Tversky', 'GeneralizedDiceFocal',
+                                 'GeneralizedWassersteinDice', 'GeneralizedDice'],
+                        help='seed for initializing training. ')
     parser.add_argument('--gpu_ids', default=0, type=int,
                         help='seed for initializing training. ')
     parser.add_argument('--seed', default=None, type=int,

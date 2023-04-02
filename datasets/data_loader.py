@@ -18,7 +18,7 @@ IMG_EXTENSIONS = [
     '.tif', '.TIF', '.tiff', '.TIFF',
     '.nii', '.nii.gz', '.dcm', '.dicom',
     '.NII', '.NII.GZ', '.DCM', '.DICOM',
-    '.npy', '.npz'
+    '.npy',  # '.npz'
 ]
 
 
@@ -49,12 +49,14 @@ class MMWHSDataset(Dataset):
     '/path/to/data/testA' and '/path/to/data/testB' during test time.
     """
 
-    def __init__(self, data_path, gt_path, phase='train'):
+    def __init__(self, data_path, gt_path, phase='train', args=None):
         """Initialize this dataset class.
 
         Parameters:
             opt (Option class) -- stores all the experiment flags; needs to be a subclass of BaseOptions
         """
+
+        self.args = args
 
         self.data_path = data_path
         self.gt_path = gt_path
@@ -99,7 +101,7 @@ class MMWHSDataset(Dataset):
         # print(data['image'].shape, data['label'].shape)
         # (3, 256, 256) (1, 256, 256)
 
-        return data['image'], data['label'].squeeze(0)
+        return data['image'], data['label']
 
     def __len__(self):
         """Return the total number of images in the dataset.
@@ -110,13 +112,14 @@ class MMWHSDataset(Dataset):
         return max(self.A_size, self.B_size)
 
     def get_transform(self, keys=('image', 'label'), phase='train'):
-        # mode = ['bilinear', 'nearest']
+        mode = ['bilinear', 'nearest']
 
         if phase == 'train':
             transform = transforms.Compose(
                 [
                     transforms.LoadImaged(keys=keys, reader='NumpyReader'),
                     transforms.EnsureChannelFirstd(keys=keys),
+                    transforms.Resized(keys=keys, spatial_size=self.args.train_size, mode=mode),
                     transforms.RepeatChanneld(keys=keys[:-1], repeats=3),
                     transforms.ToTensord(keys=keys),
                 ]
@@ -126,6 +129,7 @@ class MMWHSDataset(Dataset):
                 [
                     transforms.LoadImaged(keys=keys, reader='NumpyReader'),
                     transforms.EnsureChannelFirstd(keys=keys),
+                    transforms.Resized(keys=keys, spatial_size=self.args.train_size, mode=mode),
                     transforms.RepeatChanneld(keys=keys[:-1], repeats=3),
                     transforms.ToTensord(keys=keys),
                 ]
@@ -136,6 +140,7 @@ class MMWHSDataset(Dataset):
                 [
                     transforms.LoadImaged(keys=keys, reader='NumpyReader'),
                     transforms.EnsureChannelFirstd(keys=keys),
+                    transforms.Resized(keys=keys, spatial_size=self.args.train_size, mode=mode),
                     transforms.RepeatChanneld(keys=keys[:-1], repeats=3),
                     transforms.ToTensord(keys=keys),
                 ]
